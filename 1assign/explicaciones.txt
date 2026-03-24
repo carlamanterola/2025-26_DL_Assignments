@@ -1,0 +1,24 @@
+¿POR QUÉ APLICAR HE INITIALIZATION Y NO INICIALIZARLO SIN MÁS?
+
+La diferencia es similar a la que hay entre comprar un instrumento de fábrica y 
+uno que ha sido afinado por un experto antes del primer concierto.
+
+En ambos casos tienes el mismo "esqueleto" (las capas y neuronas), pero la diferencia reside 
+en los números iniciales que hay dentro de esas capas.
+
+1. Aplicar el modelo "por sí solo"
+Cuando creas model = InsuranceModel(input_size) y no haces nada más, PyTorch no deja los pesos en cero (porque la red no aprendería), 
+sino que usa una inicialización por defecto llamada Uniforme de LeCun.
+- El problema: Esta inicialización fue diseñada hace años para funciones de activación más antiguas (como Sigmoide).
+- Con ReLU: Al usar ReLU, esta configuración por defecto puede hacer que las señales matemáticas se vuelvan cada vez más pequeñas a medida que pasan por las capas. 
+Esto se llama Vanishing Gradient (Gradiente Desvaneciente).
+- Resultado: El modelo tarda mucho más en aprender o, en el peor de los casos, se queda "atascado" y nunca llega a una buena solución.
+
+
+2. Usar He Initialization 
+Al aplicar model.apply(init_weights), estás sobrescribiendo esos números al azar con otros calculados específicamente para trabajar con ReLU.
+- La solución: He Initialization multiplica los pesos iniciales por un factor de $\sqrt{2/n}$ (donde $n$ es el número de entradas). Ese "2" es la clave: compensa el hecho de que ReLU apaga la mitad de las neuronas (las negativas).
+- Resultado: La señal se mantiene fuerte y estable a través de todas las capas desde el primer segundo.
+
+OBJETIVO
+El objetivo de usar He Initialization es asegurar que la señal matemática no se debilite al pasar por las capas, permitiendo que el modelo con activación ReLU aprenda de forma mucho más rápida y estable desde el primer segundo.
