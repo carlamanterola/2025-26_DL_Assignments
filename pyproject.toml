@@ -6,6 +6,10 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "optuna-dashboard>=0.20.0",
+    "pandas>=3.0.1",
+    "seaborn>=0.13.2",
+    "sklearn-preprocessing>=0.1.0",
+    "standardscaler>=0.5",
     "tensorboard>=2.20.0",
     "torch>=2.10.0",
     "torchaudio>=2.10.0",
