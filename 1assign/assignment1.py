@@ -168,64 +168,107 @@ def init_weights(m):
         # neurons are active at the beginning of training.
         m.bias.data.fill_(0.01)
 
-# Aplicarlo a tu modelo
+# We apply it to the model 
 model.apply(init_weights)   
 
 print(model)
 # --------------------------------------------------------------------------------------------------------------------------------------------------------
 
 # 3.3 OPTIMIZER (SGD, ADAM, ..., ?)
-optimizer = torch.optim.Adam(model.parameters(), lr=0.001) # lr=1e-3 or lr=0.001?
+optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+# lr = learning rate, which controls how much we adjust the weights in response to the calculated error each time the model weights are updated.
+# lr = 0.001 is a common starting point for Adam (usually provides the best stability), but it can be tuned later with Optuna.
 # --------------------------------------------------------------------------------------------------------------------------------------------------------
 
 # 4 MODEL TRAINING
 def train(model, optimizer, epochs=100):
+    # an "epoch" is one complete pass through the entire training dataset.
     for epoch in range(epochs):
-        model.train()
-        
-        optimizer.zero_grad()        # clear old gradients first
-        preds = model(X_train_t)
-        loss = criterion(preds, y_train_t)
-        loss.backward()
-        optimizer.step()
 
+        # sets the model to training mode. This is important because some layers (like dropout or batch normalization) behave differently during training and evaluation.
+        model.train()
+        # 1. GRADIENT CLEANUP: PyTorch accumulates gradients by default. 
+        # We must clear the old gradients from the previous step so they 
+        # don't interfere with the current calculation.
+        optimizer.zero_grad()  
+        # 2. FORWARD PASS: Pass the input features (X) through the model.
+        # The model performs matrix multiplications and activations to produce predictions. 
+        preds = model(X_train_t)
+        # 3. LOSS CALCULATION: Compare the model's predictions to the actual target values.
+        # 'loss' is a single number representing how "wrong" the model is.
+        loss = criterion(preds, y_train_t)
+        # 4. BACKPROPAGATION (Backward Pass): PyTorch calculates the derivative 
+        # of the loss with respect to every weight in the model. 
+        # It finds which direction to move the weights to reduce error.
+        loss.backward()
+        # 5. OPTIMIZATION STEP: The optimizer (Adam) updates the weights 
+        # based on the gradients calculated in the previous step and the Learning Rate.
+        optimizer.step()
+        # Every 10 epochs, print the current loss to ensure 
+        # the model is actually converging (the number should be decreasing).
         if epoch % 10 == 0:
             print(f"Epoch {epoch}, Loss: {loss.item():.4f}")
-
+# Execute the training function to train the model for 100 epochs.
 train(model, optimizer, epochs=100)
 # --------------------------------------------------------------------------------------------------------------------------------------------------------
 
 # 5 PERFORMANCE EVALUATION
+
+# 1. EVALUATION MODE: This tells the model to stop training. 
+# It disables layers like Dropout or Batch Normalization so that 
+# the model behaves consistently during testing.
 model.eval()
+# 2. DISABLE GRADIENT CALCULATION: Since we are only predicting 
+# (not updating weights), we don't need to track gradients. 
+# This saves a lot of memory and makes the computation much faster.
 with torch.no_grad():
+    # We pass the test data through the model and convert the 
+    # resulting PyTorch tensor back into a NumPy array for Scikit-Learn.
     preds = model(X_test_t).numpy()
 
+# 3. METRIC CALCULATION:
+# RMSE (Root Mean Squared Error): Penalizes large errors more heavily. 
+# It tells you, on average, how many units the predictions are off.
 rmse = np.sqrt(mean_squared_error(y_test, preds))
+# MAE (Mean Absolute Error): The average of the absolute differences 
+# between predictions and actual values.
 mae = mean_absolute_error(y_test, preds)
+# R2 Score (Coefficient of Determination): Tells how much of the 
+# variance in insurance charges is explained by the model. 
+# 1.0 is a perfect fit; 0.0 means the model is no better than guessing the average.
 r2 = r2_score(y_test, preds)
 # --------------------------------------------------------------------------------------------------------------------------------------------------------
 
 # 6 HYPERPARAMETER TUNING WITH OPTUNA
 def objective(trial):
-    # 1. SUGGEST NUMBER OF LAYERS (e.g., between 1 and 3)
+    # Optuna suggests how many hidden layers to create (1 to 3).
+    # Considering more layers could generate overfitting, as we are working with a relatively small data set.
     n_layers = trial.suggest_int("n_layers", 1, 3)
     
     hidden_layers = []
     for i in range(n_layers):
-        # Suggest neurons for each layer (e.g., layer_0, layer_1...)
+        # For each layer, it suggests a number of neurons (16, 32, ..., 128).
         size = trial.suggest_int(f"n_units_l{i}", 16, 128, step=16)
+        # step=16: limits the choices to 8 jumps, which reduces the search space and speeds up the optimization process.
         hidden_layers.append(size)
-    
+    # suggests values for the learning rate (lr) between 0.0001 and 0.01 on a logarithmic scale -->
+    # log = True means that the search will be more efficient because it will explore more values in the lower range (where good learning rates often are) 
+    # and fewer values in the higher range.
     lr = trial.suggest_float("lr", 1e-4, 1e-2, log=True)
 
-    # 2. BUILD AND TRAIN
+    # Create the model using the suggested parameters. 
+    # .to(DEVICE) moves the model to the GPU if available, which can significantly speed up training.
     model = OptunaInsuranceModel(X_train.shape[1], hidden_layers).to(DEVICE)
     model.apply(init_weights)
     
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     criterion = nn.MSELoss()
 
-    for epoch in range(200):
+    # Suggest the number of epochs
+    # We test between 50 (fast) and 500 (thorough)
+    epochs = trial.suggest_int("epochs", 50, 500)
+
+    for epoch in range(epochs):
         model.train()
         optimizer.zero_grad()
         preds = model(X_train_t.to(DEVICE))
@@ -233,7 +276,7 @@ def objective(trial):
         loss.backward()
         optimizer.step()
 
-    # 3. EVALUATE
+    # EVALUATE
     model.eval()
     with torch.no_grad():
         test_preds = model(X_test_t.to(DEVICE))
@@ -241,33 +284,72 @@ def objective(trial):
         
     return score
 
-# Creamos el estudio
-# Busca la línea donde creas el estudio y cámbiala por esta:
+# Create the "Study" and tell it to maximize the R2 Score (higher is better).
 study = optuna.create_study(direction="maximize") 
 
-
-# Ejecutamos 30 o 50 intentos para tener datos suficientes
+# Run 500 different trials to find the winning combination.
 study.optimize(objective, n_trials=500)
 
-# 1. Obtener el mejor R2 (el valor más alto)
+# Extract the winning results
 mejor_r2 = study.best_value
-
-# 2. Obtener los parámetros exactos que lograron ese R2
 mejores_params = study.best_params
+# --------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# 7 FINAL MODEL TRAINING AND EVALUATION WITH THE WINNING CONFIGURATION
+best_layers = study.best_params['n_layers']
+best_lr = study.best_params['lr']
+best_epochs = study.best_params['epochs']
+
+best_hidden_layers = [study.best_params[f"n_units_l{i}"] for i in range(best_layers)]
+
+final_model = OptunaInsuranceModel(input_dim=X_train.shape[1], hidden_layers=best_hidden_layers).to(DEVICE)
+final_model.apply(init_weights)
+
+# 2. Setup the winning Optimizer and Criterion
+optimizer = torch.optim.Adam(final_model.parameters(), lr=best_lr)
+criterion = nn.MSELoss()
+
+for epoch in range(best_epochs):
+    final_model.train()
+    optimizer.zero_grad()
+    preds = final_model(X_train_t.to(DEVICE))
+    loss = criterion(preds, y_train_t.to(DEVICE))
+    loss.backward()
+    optimizer.step()
+
+# 4. Final Evaluation on the Test Set
+final_model.eval()
+with torch.no_grad():
+    final_preds_t = final_model(X_test_t.to(DEVICE))
+    # Move back to CPU and convert to numpy for sklearn metrics
+    final_preds = final_preds_t.cpu().numpy()
+
+# 5. Calculate the Missing Metrics
+from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+import numpy as np
+
+final_rmse = np.sqrt(mean_squared_error(y_test_t.cpu(), final_preds))
+final_mae = mean_absolute_error(y_test_t.cpu(), final_preds)
+final_r2 = r2_score(y_test_t.cpu(), final_preds)
+# --------------------------------------------------------------------------------------------------------------------------------------------------------
 
 # RESULTS OF SIMPLE MODEL
-print("RESULTS OF SIMPLE MODEL:")
+print("="*30)
+print("METRICS OF SIMPLE MODEL:")
+print("="*30)
 print(f"RMSE: {rmse:.2f}")
 print(f"MAE: {mae:.2f}")
 print(f"R2: {r2:.3f}")
 
 # RESULTS OF OPTUNA TUNING
-print("\nRESULTS OF OPTUNA TUNING:")
 print("="*30)
-print(f"EL MEJOR VALOR DIRECTO: {mejor_r2:.4f}")
+print("RESULTS OF OPTUNA TUNING:")
 print("="*30)
-print("Configuración ganadora:")
+print(f"Best R2 Score: {mejor_r2:.4f}")
+print("Winning Configuration:")
 for parametro, valor in mejores_params.items():
     print(f" -> {parametro}: {valor}")
-
-print(f"Total de intentos guardados: {len(study.trials)}")
+print("METRICS: ")
+print(f"RMSE: {final_rmse:.4f}")
+print(f"MAE:  {final_mae:.4f}")
+print(f"R2:   {final_r2:.4f}")

@@ -1,4 +1,4 @@
-¿POR QUÉ APLICAR HE INITIALIZATION Y NO INICIALIZARLO SIN MÁS?
+### ¿POR QUÉ APLICAR HE INITIALIZATION Y NO INICIALIZARLO SIN MÁS? ###
 
 La diferencia es similar a la que hay entre comprar un instrumento de fábrica y 
 uno que ha sido afinado por un experto antes del primer concierto.
@@ -22,3 +22,40 @@ Al aplicar model.apply(init_weights), estás sobrescribiendo esos números al az
 
 OBJETIVO
 El objetivo de usar He Initialization es asegurar que la señal matemática no se debilite al pasar por las capas, permitiendo que el modelo con activación ReLU aprenda de forma mucho más rápida y estable desde el primer segundo.
+
+
+### GRADIENTS ###
+
+Gradients are the mathematical signals that tell the model how to change its internal weights to reduce error.
+
+
+### LEARNING RATE ###
+
+It defines the size of the step the model takes when updating its weights.
+If the Gradient tells the model which direction to walk to reduce error,
+the Learning Rate tells it how far to step in that direction.
+lr = 0.001
+
+- 0.01 (The "Fast" limit): Anything higher than this usually makes the model "explode" or vibrate around the solution without ever landing on it.
+
+- 0.0001 (The "Slow" limit): Anything lower than this would take thousands of epochs to learn even the simplest patterns.
+
+
+### EPOCHS ### 
+
+An Epoch represents one full pass of the entire training dataset through the neural network.
+One epoch is completed only after the model has looked at, predicted, 
+and learned from every single one of the 1,338 rows in the data set exactly once.
+
+Why do we need more than one?
+- Epoch 1: The model makes random guesses, gets corrected, and starts to see basic trends (e.g., "Smokers usually cost more").
+
+- Epoch 10: The model starts to understand the relationship between BMI and age.
+
+- Epoch 100: The model has "read the book" 100 times and has fine-tuned its internal weights to catch subtle details.
+
+### NUMBER OF NEURONS PER LAYER ###
+
+Computer memory (RAM and GPU VRAM) is organized in powers of 2,
+when you use numbers like 16, 32, 64, or 128, the hardware can process the matrix multiplications more efficiently.
+Using too few neurons would probably cause underfitting, using too many, overfitting.
