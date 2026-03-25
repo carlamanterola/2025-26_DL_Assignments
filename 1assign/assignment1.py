@@ -35,7 +35,7 @@ print(f"Using device: {DEVICE}\n")
 df = pd.read_csv("1assign/insurance.csv")
 df.head()
 
-#TODO: Check the dataset for any issues (missing values, data types, etc.) and preprocess as needed.
+#Check the dataset for any issues (missing values, data types, etc.) and preprocess as needed.
 df.isnull().sum()
 
 # -------------------------------------------------------------------------------------------------------------------------------------------------------- 
