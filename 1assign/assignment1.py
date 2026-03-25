@@ -12,6 +12,9 @@ from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 
 import optuna
 
+import matplotlib.pyplot as plt
+import matplotlib.gridspec as gridspec
+
 # SEED FOR REPRODUCIBILITY
 # so we get the same results every time we run the notebook
 SEED = 42
@@ -353,3 +356,114 @@ print("METRICS: ")
 print(f"RMSE: {final_rmse:.4f}")
 print(f"MAE:  {final_mae:.4f}")
 print(f"R2:   {final_r2:.4f}")
+
+
+#--------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# 8. VISUALIZATIONS
+
+def to_numpy(x):
+    if hasattr(x, "detach"):
+        arr = x.detach().cpu().numpy()
+    else:
+        arr = np.array(x)
+    return arr.reshape(-1)
+
+y_true   = to_numpy(y_test)
+y_simple = to_numpy(preds)[:len(y_true)]
+y_optuna = to_numpy(final_preds)[:len(y_true)]
+
+print(f"Shapes — y_true: {y_true.shape}, y_simple: {y_simple.shape}, y_optuna: {y_optuna.shape}")
+
+residuals_simple = y_true - y_simple
+residuals_optuna = y_true - y_optuna
+
+# Layout
+fig = plt.figure(figsize=(16, 12))
+fig.suptitle("Simple Model vs Optuna-Tuned Model", fontsize=16, fontweight="bold", y=0.98)
+
+BLUE   = "#378ADD"   # simple model
+CORAL  = "#D85A30"   # optuna model
+GRAY   = "#B4B2A9"
+LIGHT  = "#F1EFE8"
+
+gs = gridspec.GridSpec(2, 2, figure=fig, hspace=0.40, wspace=0.35)
+
+#  1. Predicted vs Actual
+ax1 = fig.add_subplot(gs[0, 0])
+
+lim = (min(y_true.min(), y_simple.min(), y_optuna.min()) - 0.1,
+       max(y_true.max(), y_simple.max(), y_optuna.max()) + 0.1)
+
+ax1.scatter(y_true, y_simple, alpha=0.45, s=25, color=BLUE,  label=f"Simple  (R²={r2:.3f})", zorder=3)
+ax1.scatter(y_true, y_optuna, alpha=0.45, s=25, color=CORAL, label=f"Optuna  (R²={final_r2:.3f})", zorder=3)
+ax1.plot(lim, lim, "--", color=GRAY, linewidth=1.2, label="Perfect fit", zorder=2)
+ax1.set_xlim(lim); ax1.set_ylim(lim)
+ax1.set_xlabel("Actual (standardised charges)")
+ax1.set_ylabel("Predicted")
+ax1.set_title("Predicted vs Actual")
+ax1.legend(fontsize=8)
+ax1.grid(True, linestyle="--", linewidth=0.4, alpha=0.6)
+
+# 2. Residuals distribution
+ax2 = fig.add_subplot(gs[0, 1])
+
+bins = np.linspace(min(residuals_simple.min(), residuals_optuna.min()),
+                   max(residuals_simple.max(), residuals_optuna.max()), 40)
+
+ax2.hist(residuals_simple, bins=bins, alpha=0.55, color=BLUE,  label="Simple", edgecolor="white", linewidth=0.4)
+ax2.hist(residuals_optuna, bins=bins, alpha=0.55, color=CORAL, label="Optuna", edgecolor="white", linewidth=0.4)
+ax2.axvline(0, color=GRAY, linestyle="--", linewidth=1.2)
+ax2.set_xlabel("Residual (actual − predicted)")
+ax2.set_ylabel("Count")
+ax2.set_title("Residual Distribution")
+ax2.legend(fontsize=8)
+ax2.grid(True, linestyle="--", linewidth=0.4, alpha=0.6)
+
+# 3. Metrics bar chart
+ax3 = fig.add_subplot(gs[1, 0])
+
+metrics      = ["RMSE", "MAE"]
+simple_vals  = [rmse, mae]
+optuna_vals  = [final_rmse, final_mae]
+
+x     = np.arange(len(metrics))
+width = 0.32
+
+bars_s = ax3.bar(x - width / 2, simple_vals, width, label="Simple", color=BLUE,  alpha=0.85, edgecolor="white", linewidth=0.6)
+bars_o = ax3.bar(x + width / 2, optuna_vals, width, label="Optuna", color=CORAL, alpha=0.85, edgecolor="white", linewidth=0.6)
+
+for bar in list(bars_s) + list(bars_o):
+    ax3.text(bar.get_x() + bar.get_width() / 2,
+             bar.get_height() + 0.004,
+             f"{bar.get_height():.3f}",
+             ha="center", va="bottom", fontsize=8)
+
+ax3.set_xticks(x); ax3.set_xticklabels(metrics)
+ax3.set_ylabel("Error (standardised scale)")
+ax3.set_title("RMSE & MAE Comparison\n(lower is better)")
+ax3.legend(fontsize=8)
+ax3.grid(True, axis="y", linestyle="--", linewidth=0.4, alpha=0.6)
+
+# 4. R² comparison 
+ax4 = fig.add_subplot(gs[1, 1])
+
+model_names = ["Simple", "Optuna"]
+r2_vals     = [r2, final_r2]
+colors      = [BLUE, CORAL]
+
+bars = ax4.barh(model_names, r2_vals, color=colors, alpha=0.85, edgecolor="white", linewidth=0.6, height=0.4)
+ax4.set_xlim(0, 1.08)
+ax4.axvline(1, color=GRAY, linestyle="--", linewidth=1.0, label="Perfect R²=1")
+
+for bar, val in zip(bars, r2_vals):
+    ax4.text(val + 0.01, bar.get_y() + bar.get_height() / 2,
+             f"{val:.4f}", va="center", fontsize=9, fontweight="bold")
+
+ax4.set_xlabel("R² Score")
+ax4.set_title("R² Score Comparison\n(higher is better)")
+ax4.legend(fontsize=8)
+ax4.grid(True, axis="x", linestyle="--", linewidth=0.4, alpha=0.6)
+
+# Show
+plt.show()
