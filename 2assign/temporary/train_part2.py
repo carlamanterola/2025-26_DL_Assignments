@@ -27,9 +27,9 @@ BATCH_SIZE  = 64
 NUM_CLASSES = 10
 NUM_WORKERS = 2
 
-SCRATCH_EPOCHS   = 50
-VGG_HEAD_EPOCHS  = 10   # train only the head first
-VGG_FINETUNE_EPOCHS = 10  # then fine-tune top conv blocks
+SCRATCH_EPOCHS   = 15
+VGG_HEAD_EPOCHS  = 3   # train only the head first
+VGG_FINETUNE_EPOCHS = 4  # then fine-tune top conv blocks
 
 
 # ─────────────────────────────────────────────
