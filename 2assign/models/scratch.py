@@ -7,29 +7,29 @@ from torch.utils.data import DataLoader, random_split
 import time
 import copy
 
-# 1. Definición de la Arquitectura (Estilo AlexNet simplificado)
+# 1. Architecture Definition (Simplified AlexNet style)
 class ScratchCNN(nn.Module):
     def __init__(self, num_classes=10):
         super(ScratchCNN, self).__init__()
         self.features = nn.Sequential(
-            # Capa 1: Entrada 32x32 -> 16x16
+            # Layer 1: Input 32x32 -> 16x16
             nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1),
             nn.BatchNorm2d(64),
             nn.ReLU(inplace=True),
             nn.MaxPool2d(kernel_size=2, stride=2),
             
-            # Capa 2: 16x16 -> 8x8
+            # Layer 2: 16x16 -> 8x8
             nn.Conv2d(64, 128, kernel_size=3, padding=1),
             nn.BatchNorm2d(128),
             nn.ReLU(inplace=True),
             nn.MaxPool2d(kernel_size=2, stride=2),
             
-            # Capas profundas
+            # Deep layers
             nn.Conv2d(128, 256, kernel_size=3, padding=1),
             nn.ReLU(inplace=True),
             nn.Conv2d(256, 256, kernel_size=3, padding=1),
             nn.ReLU(inplace=True),
-            nn.MaxPool2d(kernel_size=2, stride=2), # Salida 4x4
+            nn.MaxPool2d(kernel_size=2, stride=2), # Output 4x4
         )
         
         self.classifier = nn.Sequential(
@@ -45,12 +45,12 @@ class ScratchCNN(nn.Module):
         x = self.classifier(x)
         return x
 
-# 2. Configuración de Dispositivo y Datos
+# 2. Device and Data Configuration
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 BATCH_SIZE = 64
 
 def prepare_data():
-    # Usamos los transforms de 'scratch' (32x32) de tu código original
+    # Use transforms for 'scratch' (32x32) from your original code
     train_transform = transforms.Compose([
         transforms.RandomHorizontalFlip(),
         transforms.RandomCrop(32, padding=4),
@@ -68,7 +68,7 @@ def prepare_data():
     
     return train_loader, val_loader
 
-# 3. Lógica de Entrenamiento (Basada en tu train_one_epoch y evaluate)
+# 3. Training Logic (Based on your train_one_epoch and evaluate)
 def train_model():
     train_loader, val_loader = prepare_data()
     model = ScratchCNN(num_classes=10).to(DEVICE)
@@ -76,10 +76,10 @@ def train_model():
     optimizer = optim.SGD(model.parameters(), lr=0.01, momentum=0.9, weight_decay=5e-4)
     
     epochs = 15
-    print(f"Entrenando en: {DEVICE}")
+    print(f"Training on: {DEVICE}")
 
     for epoch in range(1, epochs + 1):
-        # Entrenamiento
+        # Training
         model.train()
         running_loss, correct, total = 0.0, 0, 0
         for images, labels in train_loader:
@@ -99,7 +99,7 @@ def train_model():
         print(f"Epoch {epoch}/{epochs} | Loss: {running_loss/total:.4f} | Acc: {train_acc:.2f}%")
 
     torch.save(model.state_dict(), 'scratch_cnn_v1.pth')
-    print("Modelo guardado como scratch_cnn_v1.pth")
+    print("Model saved as scratch_cnn_v1.pth")
 
 if __name__ == '__main__':
     train_model()

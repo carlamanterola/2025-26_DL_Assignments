@@ -8,7 +8,7 @@ def plot_training_curves(history, title='Model', save_path=None, vline_at=None):
     ax1.plot(epochs, history['train_loss'], label='Train')
     ax1.plot(epochs, history['val_loss'],   label='Val')
     if vline_at:
-        ax1.axvline(x=vline_at, color='gray', linestyle='--', label='Fine-tune starts')
+        ax1.axvline(x=vline_at, color='gray', linestyle='--', label='Fine-tuning starts')
     ax1.set_xlabel('Epoch')
     ax1.set_ylabel('Loss')
     ax1.set_title('Loss')
@@ -18,7 +18,7 @@ def plot_training_curves(history, title='Model', save_path=None, vline_at=None):
     ax2.plot(epochs, history['train_acc'], label='Train')
     ax2.plot(epochs, history['val_acc'],   label='Val')
     if vline_at:
-        ax2.axvline(x=vline_at, color='gray', linestyle='--', label='Fine-tune starts')
+        ax2.axvline(x=vline_at, color='gray', linestyle='--', label='Fine-tuning starts')
     ax2.set_xlabel('Epoch')
     ax2.set_ylabel('Accuracy (%)')
     ax2.set_title('Accuracy')
