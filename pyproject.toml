@@ -5,6 +5,7 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "datasets>=4.8.5",
     "optuna-dashboard>=0.20.0",
     "pandas>=3.0.1",
     "seaborn>=0.13.2",
