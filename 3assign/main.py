@@ -1,18 +1,17 @@
-import random
 import numpy as np
 import torch
 from datasets import load_dataset
-from tasks import language
-import torch
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.metrics import mean_absolute_error, mean_squared_error
-
-import timeSeries.baseline_pipeline as baseline
-from timeSeries.TS_model import (
+ 
+from models import lstm as lstm_module
+from utils.eda import plot_imdb_eda
+from utils.plots import plot_training_curves, plot_final_summary
+import models.baseline_pipeline as baseline
+from models.TS_model import (
     load_and_clean,
     test_stationarity,
     plot_stationarity,
-    scale_data,
     build_sequences_from_segments,
     split_data,
     LSTMForecaster,
@@ -24,26 +23,12 @@ from timeSeries.TS_model import (
     plot_forecast,
 )
 
-'''
+
 # REPRODUCIBILITY
 # ===========================================================================
-SEED = 42
-random.seed(SEED)
+SEED = 123
 np.random.seed(SEED)
 torch.manual_seed(SEED)
- 
-CONFIG = {
-    'seed':       SEED,
-    'device':     torch.device('cuda' if torch.cuda.is_available() else 'cpu'),
-    'epochs':     60,
-    'batch_size': 16,
-    'embed_dim':  16,
-    'hidden_dim': 32,
-    'dropout':    0.3,
-    'lr':         5e-3,
-}
- 
-print(f'PyTorch {torch.__version__}  |  device: {CONFIG["device"]}')
 
 
 # ===========================================================================
@@ -53,18 +38,78 @@ print("=" * 80)
 print("TASK 1: LANGUAGE - MOVIE REVIEW CLASSIFICATION")
 print("=" * 80)
 
-ds = load_dataset('imdb')
-texts  = ds['train']['text']
-labels = ds['train']['label']
+# ── Config ────────────────────────────────────────────────────────────────────
+GLOVE_PATH = "./3assign/data/glove.6B.100d.txt"
+EPOCHS_NLP = 8
  
-assert len(texts) > 0, 'Load your IMDb data into `texts` and `labels` before running.'
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+print(f"Using device: {device}")
  
-predict = language.run(texts, labels, CONFIG)
+# ── Data ──────────────────────────────────────────────────────────────────────
+print("Loading IMDB dataset …")
+raw       = load_dataset("imdb")
+train_raw = raw["train"]
+test_raw  = raw["test"]
  
-# Example inference after training
-predict('what a stunning and beautiful film this was')
-predict('what a dreadful and boring film this was')
-'''
+print(f"Train size: {len(train_raw)} | Test size: {len(test_raw)}")
+ 
+# ── EDA ───────────────────────────────────────────────────────────────────────
+plot_imdb_eda(train_raw, test_raw)
+ 
+# ── Vocabulary & encoding ─────────────────────────────────────────────────────
+vocab, stoi = lstm_module.build_vocab(train_raw)
+VOCAB_SIZE  = len(vocab)
+PAD_IDX     = stoi["<pad>"]
+UNK_IDX     = stoi["<unk>"]
+encode_fn   = lstm_module.make_encoder(stoi, unk_idx=UNK_IDX)
+ 
+# ── Dataloaders ───────────────────────────────────────────────────────────────
+train_loader, test_loader = lstm_module.build_dataloaders(
+    train_raw, test_raw, encode_fn, pad_idx=PAD_IDX,
+    batch_size=lstm_module.BATCH_SIZE,
+)
+ 
+# ── Model ─────────────────────────────────────────────────────────────────────
+model = lstm_module.LSTM(
+    vocab_size=VOCAB_SIZE,
+    embedding_dim=lstm_module.EMBEDDING_DIM,
+    hidden_dim=lstm_module.HIDDEN_DIM,
+    pad_idx=PAD_IDX,
+)
+ 
+try:
+    pretrained = lstm_module.load_glove(GLOVE_PATH, stoi, pad_idx=PAD_IDX,
+                                        dim=lstm_module.EMBEDDING_DIM)
+    model.embedding.weight.data.copy_(pretrained)
+    model.embedding.weight.data[PAD_IDX] = torch.zeros(lstm_module.EMBEDDING_DIM)
+    print("GloVe embeddings loaded successfully.")
+except FileNotFoundError:
+    print(f"[WARNING] GloVe file not found at '{GLOVE_PATH}'. Using random embeddings.")
+ 
+optimizer = torch.optim.Adam(model.parameters(), lr=lstm_module.LR,
+                             weight_decay=lstm_module.WEIGHT_DECAY)
+criterion = torch.nn.BCEWithLogitsLoss()
+ 
+model     = model.to(device)
+criterion = criterion.to(device)
+ 
+# ── Training ──────────────────────────────────────────────────────────────────
+train_losses, test_losses = [], []
+train_accs,   test_accs   = [], []
+ 
+for epoch in range(1, EPOCHS_NLP + 1):
+    print(f"\nEpoch {epoch}/{EPOCHS_NLP}")
+    tr_loss, tr_acc = lstm_module.train_epoch(model, train_loader, optimizer, criterion, device)
+    te_loss, te_acc = lstm_module.evaluate_epoch(model, test_loader, criterion, device)
+    print(f"---> Train  Loss: {tr_loss:.4f} | Acc: {tr_acc:.4f}")
+    print(f"---> Test   Loss: {te_loss:.4f} | Acc: {te_acc:.4f}")
+    train_losses.append(tr_loss);  test_losses.append(te_loss)
+    train_accs.append(tr_acc);     test_accs.append(te_acc)
+ 
+# ── Plots ─────────────────────────────────────────────────────────────────────
+plot_training_curves(train_losses, test_losses, train_accs, test_accs)
+plot_final_summary(train_losses, test_losses, train_accs, test_accs)
+ 
 
 # ===========================================================================
 # TASK 2: TIME-SERIES
